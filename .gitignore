@@ -1,0 +1,25 @@
+# Binaries (built output only, not cmd/pupp/ source)
+/pupp
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+
+# Output
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/dist/
