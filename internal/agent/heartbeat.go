@@ -60,7 +60,14 @@ func CollectHealthMetrics() HealthMetrics {
 }
 
 func GetBinaryVersion(binPath string) string {
-	out, err := exec.Command(binPath, "-version").CombinedOutput()
+	var out []byte
+	var err error
+	for _, flag := range []string{"--version", "-version"} {
+		out, err = exec.Command(binPath, flag).CombinedOutput()
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return "unknown"
 	}
