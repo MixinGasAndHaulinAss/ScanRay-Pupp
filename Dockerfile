@@ -3,9 +3,9 @@
 # Builds Pupp agent + Scanray scanner from source, pulls Nuclei from official image
 # =============================================================================
 
-# Stage 1: Build Scanray scanner from source
-FROM golang:1.22-alpine AS scanray-builder
-RUN apk add --no-cache gcc musl-dev libpcap-dev
+# Stage 1: Build Scanray scanner from source (Debian to match Ubuntu runtime)
+FROM golang:1.22-bookworm AS scanray-builder
+RUN apt-get update && apt-get install -y --no-install-recommends libpcap-dev gcc && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY scanray-src/ ./
 RUN go mod download
