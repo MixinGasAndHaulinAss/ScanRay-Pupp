@@ -2,6 +2,7 @@ package agent
 
 import (
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
+
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 type SystemInfo struct {
 	OS       string `json:"os"`
@@ -61,7 +64,25 @@ func GetBinaryVersion(binPath string) string {
 	if err != nil {
 		return "unknown"
 	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	clean := ansiRegex.ReplaceAllString(string(out), "")
+	clean = strings.Map(func(r rune) rune {
+		if r == '[' || r == ']' {
+			return -1
+		}
+		return r
+	}, clean)
+	lines := strings.Split(strings.TrimSpace(clean), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(strings.ToLower(line), "version") {
+			parts := strings.Fields(line)
+			for _, p := range parts {
+				if strings.HasPrefix(p, "v") && len(p) > 1 && p[1] >= '0' && p[1] <= '9' {
+					return p
+				}
+			}
+		}
+	}
 	if len(lines) > 0 {
 		return strings.TrimSpace(lines[0])
 	}
