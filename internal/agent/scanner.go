@@ -56,10 +56,11 @@ func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) 
 	defer os.Remove(outputFile)
 
 	args := []string{
-		"-targets", targetsFile,
-		"-output", outputFile,
-		"-json",
-		"-rate", fmt.Sprintf("%d", req.RateLimit),
+		"-f", targetsFile,
+		"-o", outputFile,
+	}
+	if req.RateLimit > 0 {
+		args = append(args, "--host-rate", fmt.Sprintf("%d", req.RateLimit))
 	}
 
 	cmd := exec.Command(s.ScanrayBin, args...)
