@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	pingInterval = 20 * time.Second
-	pongWait     = 30 * time.Second
-	writeWait    = 10 * time.Second
+	pingInterval = 25 * time.Second
+	pongWait     = 90 * time.Second
+	writeWait    = 15 * time.Second
 )
 
 type Client struct {
