@@ -50,13 +50,6 @@ COPY --from=scanray-builder /scanray /opt/scanray/bin/scanray
 
 RUN chmod +x /opt/scanray/bin/*
 
-RUN groupadd -g 1500 scanray && \
-    useradd -m -u 1001 -G scanray pupp && \
-    chown -R pupp:scanray /opt/scanray && \
-    chmod -R 775 /opt/scanray
-
-USER pupp
-
 RUN /opt/scanray/bin/nuclei -update-templates 2>/dev/null || true
 
 ENV SCANRAY_BINARY=/opt/scanray/bin/scanray
