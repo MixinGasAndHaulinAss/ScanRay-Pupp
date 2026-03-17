@@ -58,6 +58,7 @@ func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) 
 	args := []string{
 		"-f", targetsFile,
 		"-o", outputFile,
+		"--no-ping",
 	}
 	if req.RateLimit > 0 {
 		args = append(args, "--host-rate", fmt.Sprintf("%d", req.RateLimit))
