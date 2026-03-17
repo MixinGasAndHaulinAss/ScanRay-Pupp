@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/NCLGISA/ScanRay-Pupp/internal/config"
-	"github.com/NCLGISA/ScanRay-Pupp/internal/ws"
+	"github.com/scanray/pupp/internal/config"
+	"github.com/scanray/pupp/internal/ws"
 )
 
 type Agent struct {
@@ -141,6 +141,7 @@ func (a *Agent) runAssetScan(req ScanRequest) {
 		return
 	}
 
+	result["scan_run_id"] = req.ScanRunID
 	a.client.SendJSON(map[string]interface{}{
 		"type":    "scan_result_asset",
 		"payload": result,
@@ -160,7 +161,7 @@ func (a *Agent) runVulnScan(req ScanRequest) {
 		if len(findings) >= batchSize {
 			a.client.SendJSON(map[string]interface{}{
 				"type":    "scan_result_vuln",
-				"payload": map[string]interface{}{"findings": findings},
+				"payload": map[string]interface{}{"findings": findings, "scan_run_id": req.ScanRunID},
 			})
 			findings = nil
 		}
@@ -169,7 +170,7 @@ func (a *Agent) runVulnScan(req ScanRequest) {
 	if len(findings) > 0 {
 		a.client.SendJSON(map[string]interface{}{
 			"type":    "scan_result_vuln",
-			"payload": map[string]interface{}{"findings": findings},
+			"payload": map[string]interface{}{"findings": findings, "scan_run_id": req.ScanRunID},
 		})
 	}
 
