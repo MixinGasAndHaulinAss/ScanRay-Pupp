@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -126,10 +127,25 @@ func (a *Agent) handleMessage(raw []byte) {
 }
 
 func (a *Agent) executeScan(req ScanRequest) {
-	a.client.SendJSON(map[string]interface{}{
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[agent] PANIC in scan goroutine (recovered): %v", r)
+			a.client.SendJSON(map[string]interface{}{
+				"type":    "scan_status",
+				"payload": map[string]interface{}{"status": "failed", "scan_run_id": req.ScanRunID, "error": fmt.Sprintf("internal panic: %v", r)},
+			})
+		}
+	}()
+
+	log.Printf("[agent] Executing scan: type=%s run_id=%s targets=%d", req.ScanType, req.ScanRunID, len(req.Targets))
+
+	if err := a.client.SendJSON(map[string]interface{}{
 		"type":    "scan_status",
 		"payload": map[string]interface{}{"status": "running", "scan_run_id": req.ScanRunID, "scan_type": req.ScanType},
-	})
+	}); err != nil {
+		log.Printf("[agent] Failed to send running status: %v", err)
+		return
+	}
 
 	if req.ScanType == "vulnerability" {
 		a.runVulnScan(req)
@@ -149,15 +165,25 @@ func (a *Agent) runAssetScan(req ScanRequest) {
 		return
 	}
 
+	hosts, _ := result["hosts"].([]interface{})
+	log.Printf("[agent] Asset scan complete: %d hosts found, sending results", len(hosts))
+
 	result["scan_run_id"] = req.ScanRunID
-	a.client.SendJSON(map[string]interface{}{
+	if err := a.client.SendJSON(map[string]interface{}{
 		"type":    "scan_result_asset",
 		"payload": result,
-	})
-	a.client.SendJSON(map[string]interface{}{
+	}); err != nil {
+		log.Printf("[agent] Failed to send asset results: %v", err)
+		return
+	}
+
+	if err := a.client.SendJSON(map[string]interface{}{
 		"type":    "scan_status",
 		"payload": map[string]interface{}{"status": "completed", "scan_run_id": req.ScanRunID},
-	})
+	}); err != nil {
+		log.Printf("[agent] Failed to send completion status: %v", err)
+	}
+	log.Printf("[agent] Asset scan run_id=%s finished and reported", req.ScanRunID)
 }
 
 func (a *Agent) runVulnScan(req ScanRequest) {

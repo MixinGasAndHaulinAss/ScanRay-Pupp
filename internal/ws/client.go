@@ -48,8 +48,14 @@ func (c *Client) Connect() error {
 	}
 
 	conn.SetPongHandler(func(string) error {
+		log.Println("[ws] Pong received, extending read deadline")
 		conn.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
+	})
+	conn.SetPingHandler(func(appData string) error {
+		log.Println("[ws] Ping received from server, sending pong")
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return conn.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(writeWait))
 	})
 	conn.SetReadDeadline(time.Now().Add(pongWait))
 
@@ -126,9 +132,15 @@ func (c *Client) ReadLoop() {
 	}()
 
 	for {
-		_, msg, err := c.conn.ReadMessage()
+		msgType, msg, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Printf("[ws] Read error: %v", err)
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("[ws] Server closed connection: %v", err)
+			} else if websocket.IsUnexpectedCloseError(err) {
+				log.Printf("[ws] Unexpected close: %v", err)
+			} else {
+				log.Printf("[ws] Read error (type=%d): %v", msgType, err)
+			}
 			return
 		}
 		if c.OnMessage != nil {
