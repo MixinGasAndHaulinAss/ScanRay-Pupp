@@ -10,11 +10,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const (
+	pingInterval = 20 * time.Second
+	pongWait     = 30 * time.Second
+	writeWait    = 10 * time.Second
+)
+
 type Client struct {
 	url       string
 	conn      *websocket.Conn
 	mu        sync.Mutex
-	done      chan struct{}
+	stopPing  chan struct{}
 	OnMessage func([]byte)
 }
 
@@ -28,8 +34,7 @@ func NewClient(wsURL, token string) *Client {
 	u.RawQuery = q.Encode()
 
 	return &Client{
-		url:  u.String(),
-		done: make(chan struct{}),
+		url: u.String(),
 	}
 }
 
@@ -41,9 +46,20 @@ func (c *Client) Connect() error {
 	if err != nil {
 		return fmt.Errorf("websocket dial: %w", err)
 	}
+
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+
 	c.mu.Lock()
 	c.conn = conn
+	c.stopPing = make(chan struct{})
 	c.mu.Unlock()
+
+	go c.pingLoop()
+
 	log.Println("[ws] Connected to Console")
 	return nil
 }
@@ -66,9 +82,42 @@ func (c *Client) ConnectWithRetry() {
 	}
 }
 
+func (c *Client) pingLoop() {
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+
+	c.mu.Lock()
+	stop := c.stopPing
+	c.mu.Unlock()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.mu.Lock()
+			if c.conn == nil {
+				c.mu.Unlock()
+				return
+			}
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.conn.WriteMessage(websocket.PingMessage, nil)
+			c.mu.Unlock()
+			if err != nil {
+				log.Printf("[ws] Ping failed: %v", err)
+				return
+			}
+		case <-stop:
+			return
+		}
+	}
+}
+
 func (c *Client) ReadLoop() {
 	defer func() {
 		c.mu.Lock()
+		if c.stopPing != nil {
+			close(c.stopPing)
+			c.stopPing = nil
+		}
 		if c.conn != nil {
 			c.conn.Close()
 			c.conn = nil
@@ -94,12 +143,17 @@ func (c *Client) SendJSON(v interface{}) error {
 	if c.conn == nil {
 		return fmt.Errorf("not connected")
 	}
+	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	return c.conn.WriteJSON(v)
 }
 
 func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.stopPing != nil {
+		close(c.stopPing)
+		c.stopPing = nil
+	}
 	if c.conn != nil {
 		c.conn.WriteMessage(websocket.CloseMessage,
 			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))

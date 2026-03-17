@@ -15,6 +15,7 @@ type Agent struct {
 	cfg     *config.Config
 	client  *ws.Client
 	scanner *Scanner
+	done    chan struct{}
 }
 
 func New(cfg *config.Config) *Agent {
@@ -27,11 +28,13 @@ func New(cfg *config.Config) *Agent {
 
 func (a *Agent) Run() {
 	for {
+		a.done = make(chan struct{})
 		a.client.ConnectWithRetry()
 		a.client.OnMessage = a.handleMessage
 		a.sendRegistration()
 		go a.heartbeatLoop()
 		a.client.ReadLoop()
+		close(a.done)
 		log.Println("[agent] Disconnected, will reconnect...")
 		time.Sleep(2 * time.Second)
 	}
@@ -60,25 +63,30 @@ func (a *Agent) sendRegistration() {
 }
 
 func (a *Agent) heartbeatLoop() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		metrics := CollectHealthMetrics()
-		msg := map[string]interface{}{
-			"type": "heartbeat",
-			"payload": map[string]interface{}{
-				"status": "online",
-				"metrics": map[string]interface{}{
-					"cpu_percent":    metrics.CPUPercent,
-					"mem_percent":    metrics.MemPercent,
-					"disk_percent":   metrics.DiskPercent,
-					"uptime_seconds": metrics.Uptime,
+	for {
+		select {
+		case <-ticker.C:
+			metrics := CollectHealthMetrics()
+			msg := map[string]interface{}{
+				"type": "heartbeat",
+				"payload": map[string]interface{}{
+					"status": "online",
+					"metrics": map[string]interface{}{
+						"cpu_percent":    metrics.CPUPercent,
+						"mem_percent":    metrics.MemPercent,
+						"disk_percent":   metrics.DiskPercent,
+						"uptime_seconds": metrics.Uptime,
+					},
 				},
-			},
-		}
-		if err := a.client.SendJSON(msg); err != nil {
-			log.Printf("[agent] Heartbeat send failed: %v", err)
+			}
+			if err := a.client.SendJSON(msg); err != nil {
+				log.Printf("[agent] Heartbeat send failed: %v", err)
+				return
+			}
+		case <-a.done:
 			return
 		}
 	}
