@@ -2,22 +2,20 @@
 set -e
 
 # ScanRay Pupp - Bare-metal Install Script
-# Usage: curl -sSL https://raw.githubusercontent.com/NCLGISA/ScanRay-Pupp/main/install.sh | bash -s -- --id <PUPP_ID> --token <TOKEN> --url <WSS_URL>
+# Usage: curl -sSL https://YOUR_DOMAIN/install-pupp.sh | bash -s -- --id <PUPP_ID> --token <TOKEN> --url <WSS_URL>
 
 INSTALL_DIR="/opt/scanray"
 PUPP_ID=""
 PUPP_TOKEN=""
 CONSOLE_URL=""
-PUPP_DOWNLOAD_BASE="https://github.com/NCLGISA/ScanRay-Pupp/releases/latest/download"
-SCANRAY_DOWNLOAD_BASE="https://github.com/NCLGISA/The-ScanRay-Console/releases/latest/download"
+DOWNLOAD_BASE="https://github.com/NCLGISA/The-ScanRay-Console/releases/latest/download"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --id) PUPP_ID="$2"; shift 2 ;;
         --token) PUPP_TOKEN="$2"; shift 2 ;;
         --url) CONSOLE_URL="$2"; shift 2 ;;
-        --pupp-download-base) PUPP_DOWNLOAD_BASE="$2"; shift 2 ;;
-        --scanray-download-base) SCANRAY_DOWNLOAD_BASE="$2"; shift 2 ;;
+        --download-base) DOWNLOAD_BASE="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -46,13 +44,13 @@ sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/data"
 
 echo "Downloading ScanRay Pupp agent..."
 sudo curl -sSL -o "${INSTALL_DIR}/bin/pupp" \
-    "${PUPP_DOWNLOAD_BASE}/pupp-${OS}-${ARCH}" || {
+    "${DOWNLOAD_BASE}/pupp-${OS}-${ARCH}" || {
     echo "WARNING: Download failed. Place the pupp binary at ${INSTALL_DIR}/bin/pupp manually."
 }
 
 echo "Downloading Scanray scanner..."
 sudo curl -sSL -o "${INSTALL_DIR}/bin/scanray" \
-    "${SCANRAY_DOWNLOAD_BASE}/scanray-${OS}-${ARCH}" || {
+    "${DOWNLOAD_BASE}/scanray-${OS}-${ARCH}" || {
     echo "WARNING: Download failed. Place the scanray binary at ${INSTALL_DIR}/bin/scanray manually."
 }
 
@@ -68,7 +66,9 @@ rm -f /tmp/nuclei.zip
 sudo chmod +x "${INSTALL_DIR}/bin/"*
 
 sudo groupadd -f -g 1500 scanray 2>/dev/null || true
-sudo useradd -r -s /bin/false -G scanray scanray 2>/dev/null || true
+if ! id -u scanray &>/dev/null; then
+    sudo useradd -r -s /bin/false -g scanray scanray
+fi
 sudo chown -R scanray:scanray "${INSTALL_DIR}"
 sudo chmod -R 775 "${INSTALL_DIR}"
 
