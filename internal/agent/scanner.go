@@ -13,7 +13,7 @@ import (
 
 type ScanRequest struct {
 	ScanRunID string   `json:"scan_run_id"`
-	ScanType  string   `json:"scan_type"` // basic, vulnerability
+	ScanType  string   `json:"scan_type"` // quick, basic, vulnerability
 	Targets   []string `json:"targets"`
 	RateLimit int      `json:"rate_limit"`
 }
@@ -37,6 +37,7 @@ func NewScanner(scanrayBin, nucleiBin, dataDir string) *Scanner {
 }
 
 // RunAssetScan runs Scanray and returns the JSON output as a map.
+// scan_type "quick" = ping-only sweep; "basic" = full SYN port scan.
 func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -59,6 +60,13 @@ func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) 
 		"-f", targetsFile,
 		"-o", outputFile,
 	}
+
+	if req.ScanType == "quick" {
+		args = append(args, "--ping-only")
+	} else {
+		args = append(args, "--syn", "-t", "500", "--timeout", "1500")
+	}
+
 	if req.RateLimit > 0 {
 		args = append(args, "--host-rate", fmt.Sprintf("%d", req.RateLimit))
 	}
@@ -68,7 +76,7 @@ func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) 
 	cmd.Stderr = os.Stderr
 	s.activeProc = cmd.Process
 
-	log.Printf("[scanner] Starting asset scan: %s %v", s.ScanrayBin, args)
+	log.Printf("[scanner] Starting %s asset scan: %s %v", req.ScanType, s.ScanrayBin, args)
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("scanray exited: %w", err)
 	}

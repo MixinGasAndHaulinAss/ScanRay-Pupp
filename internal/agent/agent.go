@@ -147,9 +147,12 @@ func (a *Agent) executeScan(req ScanRequest) {
 		return
 	}
 
-	if req.ScanType == "vulnerability" {
+	switch req.ScanType {
+	case "vulnerability":
 		a.runVulnScan(req)
-	} else {
+	case "quick", "basic":
+		a.runAssetScan(req)
+	default:
 		a.runAssetScan(req)
 	}
 }
