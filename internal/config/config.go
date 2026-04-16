@@ -6,22 +6,24 @@ import (
 )
 
 type Config struct {
-	ConsoleURL string // wss://domain/ws/pupp/{id}
-	AuthToken  string
-	PuppID     string
-	ScanrayBin string
-	NucleiBin  string
-	DataDir    string
+	ConsoleURL         string // wss://domain/ws/pupp/{id}
+	AuthToken          string
+	PuppID             string
+	ScanrayBin         string
+	NucleiBin          string
+	DataDir            string
+	NucleiTemplatesDir string
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		ConsoleURL: os.Getenv("PUPP_CONSOLE_URL"),
-		AuthToken:  os.Getenv("PUPP_AUTH_TOKEN"),
-		PuppID:     os.Getenv("PUPP_ID"),
-		ScanrayBin: envOrDefault("SCANRAY_BINARY", "/opt/scanray/bin/scanray"),
-		NucleiBin:  envOrDefault("NUCLEI_BINARY", "/opt/scanray/bin/nuclei"),
-		DataDir:    envOrDefault("PUPP_DATA_DIR", "/opt/scanray/data"),
+		ConsoleURL:         os.Getenv("PUPP_CONSOLE_URL"),
+		AuthToken:          os.Getenv("PUPP_AUTH_TOKEN"),
+		PuppID:             os.Getenv("PUPP_ID"),
+		ScanrayBin:         envOrDefault("SCANRAY_BINARY", "/opt/scanray/bin/scanray"),
+		NucleiBin:          envOrDefault("NUCLEI_BINARY", "/opt/scanray/bin/nuclei"),
+		DataDir:            envOrDefault("PUPP_DATA_DIR", "/opt/scanray/data"),
+		NucleiTemplatesDir: envOrDefault("NUCLEI_TEMPLATES_DIR", "/opt/scanray/data/nuclei-templates"),
 	}
 	if c.ConsoleURL == "" {
 		return nil, fmt.Errorf("PUPP_CONSOLE_URL is required")

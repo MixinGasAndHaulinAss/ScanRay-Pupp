@@ -19,20 +19,25 @@ type ScanRequest struct {
 }
 
 type Scanner struct {
-	ScanrayBin string
-	NucleiBin  string
-	DataDir    string
+	ScanrayBin    string
+	NucleiBin     string
+	DataDir       string
+	TemplatesDir  string
 
 	mu         sync.Mutex
 	activeProc *os.Process
 }
 
-func NewScanner(scanrayBin, nucleiBin, dataDir string) *Scanner {
+func NewScanner(scanrayBin, nucleiBin, dataDir, templatesDir string) *Scanner {
 	os.MkdirAll(dataDir, 0775)
+	if templatesDir != "" {
+		os.MkdirAll(templatesDir, 0775)
+	}
 	return &Scanner{
-		ScanrayBin: scanrayBin,
-		NucleiBin:  nucleiBin,
-		DataDir:    dataDir,
+		ScanrayBin:   scanrayBin,
+		NucleiBin:    nucleiBin,
+		DataDir:      dataDir,
+		TemplatesDir: templatesDir,
 	}
 }
 
@@ -64,7 +69,7 @@ func (s *Scanner) RunAssetScan(req ScanRequest) (map[string]interface{}, error) 
 	if req.ScanType == "quick" {
 		args = append(args, "--ping-only")
 	} else {
-		args = append(args, "--syn", "-t", "500", "--timeout", "1500")
+		args = append(args, "-t", "500", "--timeout", "1500")
 	}
 
 	if req.RateLimit > 0 {
@@ -117,6 +122,10 @@ func (s *Scanner) RunVulnScan(req ScanRequest, onFinding func(map[string]interfa
 		"-concurrency", "25",
 		"-timeout", "5",
 		"-no-color",
+	}
+
+	if s.TemplatesDir != "" {
+		args = append(args, "-t", s.TemplatesDir)
 	}
 
 	cmd := exec.Command(s.NucleiBin, args...)

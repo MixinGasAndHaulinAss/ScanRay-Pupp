@@ -42,18 +42,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/scanray/bin /opt/scanray/data
+RUN mkdir -p /opt/scanray/bin /opt/scanray/data/nuclei-templates
 
 COPY --from=pupp-builder /pupp /opt/scanray/bin/pupp
 COPY --from=nuclei-bin /usr/local/bin/nuclei /opt/scanray/bin/nuclei
 COPY --from=scanray-builder /scanray /opt/scanray/bin/scanray
+COPY scripts/entrypoint.sh /opt/scanray/bin/entrypoint.sh
 
 RUN chmod +x /opt/scanray/bin/*
-
-RUN /opt/scanray/bin/nuclei -update-templates 2>/dev/null || true
 
 ENV SCANRAY_BINARY=/opt/scanray/bin/scanray
 ENV NUCLEI_BINARY=/opt/scanray/bin/nuclei
 ENV PUPP_DATA_DIR=/opt/scanray/data
+ENV NUCLEI_TEMPLATES_DIR=/opt/scanray/data/nuclei-templates
 
-ENTRYPOINT ["/opt/scanray/bin/pupp"]
+# Templates and scan scratch files live on the persistent data volume. Mount
+# a named volume here (e.g. -v scanray-pupp-data:/opt/scanray/data) so Nuclei
+# templates survive container recreation and are auto-updated every 24h by
+# the Pupp agent.
+VOLUME ["/opt/scanray/data"]
+
+ENTRYPOINT ["/opt/scanray/bin/entrypoint.sh"]

@@ -6,28 +6,32 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/scanray/pupp/internal/config"
+	"github.com/scanray/pupp/internal/version"
 	"github.com/scanray/pupp/internal/ws"
 )
 
 type Agent struct {
-	cfg     *config.Config
-	client  *ws.Client
-	scanner *Scanner
-	done    chan struct{}
+	cfg          *config.Config
+	client       *ws.Client
+	scanner      *Scanner
+	done         chan struct{}
+	templatesMu  sync.Mutex
 }
 
 func New(cfg *config.Config) *Agent {
 	return &Agent{
 		cfg:     cfg,
 		client:  ws.NewClient(cfg.ConsoleURL, cfg.AuthToken),
-		scanner: NewScanner(cfg.ScanrayBin, cfg.NucleiBin, cfg.DataDir),
+		scanner: NewScanner(cfg.ScanrayBin, cfg.NucleiBin, cfg.DataDir, cfg.NucleiTemplatesDir),
 	}
 }
 
 func (a *Agent) Run() {
+	go a.templateUpdateLoop()
 	for {
 		a.done = make(chan struct{})
 		a.client.ConnectWithRetry()
@@ -54,6 +58,7 @@ func (a *Agent) sendRegistration() {
 				"arch":     sysInfo.Arch,
 				"hostname": sysInfo.Hostname,
 			},
+			"pupp_version":    version.Version,
 			"scanray_version": scanrayVer,
 			"nuclei_version":  nucleiVer,
 		},
@@ -226,9 +231,27 @@ func (a *Agent) runVulnScan(req ScanRequest) {
 	})
 }
 
+// templateUpdateLoop runs updateTemplates every 24 hours for the life of the
+// Pupp process. First-run seeding (on container startup) is handled by the
+// entrypoint script so scans don't block on the very first connection.
+func (a *Agent) templateUpdateLoop() {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
+		a.updateTemplates()
+	}
+}
+
 func (a *Agent) updateTemplates() {
+	a.templatesMu.Lock()
+	defer a.templatesMu.Unlock()
+
 	log.Println("[agent] Updating Nuclei templates...")
-	cmd := exec.Command(a.cfg.NucleiBin, "-update-templates")
+	args := []string{"-update-templates"}
+	if a.cfg.NucleiTemplatesDir != "" {
+		args = append(args, "-ud", a.cfg.NucleiTemplatesDir)
+	}
+	cmd := exec.Command(a.cfg.NucleiBin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -40,7 +40,7 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 echo "Platform: ${OS}/${ARCH}"
 
 echo "Creating directories..."
-sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/data"
+sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/data/nuclei-templates"
 
 echo "Downloading ScanRay Pupp agent..."
 sudo curl -sSL -o "${INSTALL_DIR}/bin/pupp" \
@@ -72,8 +72,9 @@ fi
 sudo chown -R scanray:scanray "${INSTALL_DIR}"
 sudo chmod -R 775 "${INSTALL_DIR}"
 
-echo "Updating Nuclei templates..."
-sudo -u scanray "${INSTALL_DIR}/bin/nuclei" -update-templates 2>/dev/null || echo "Template update skipped"
+echo "Seeding Nuclei templates into ${INSTALL_DIR}/data/nuclei-templates..."
+sudo -u scanray "${INSTALL_DIR}/bin/nuclei" -update-templates -ud "${INSTALL_DIR}/data/nuclei-templates" 2>/dev/null \
+    || echo "Template seed skipped; Pupp will retry on the 24h loop"
 
 echo "Creating environment file..."
 sudo tee /etc/scanray-pupp.env > /dev/null <<ENVEOF
@@ -83,6 +84,7 @@ PUPP_CONSOLE_URL=${CONSOLE_URL}
 SCANRAY_BINARY=${INSTALL_DIR}/bin/scanray
 NUCLEI_BINARY=${INSTALL_DIR}/bin/nuclei
 PUPP_DATA_DIR=${INSTALL_DIR}/data
+NUCLEI_TEMPLATES_DIR=${INSTALL_DIR}/data/nuclei-templates
 ENVEOF
 sudo chmod 600 /etc/scanray-pupp.env
 
