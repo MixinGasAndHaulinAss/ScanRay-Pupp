@@ -8,7 +8,7 @@ INSTALL_DIR="/opt/scanray"
 PUPP_ID=""
 PUPP_TOKEN=""
 CONSOLE_URL=""
-DOWNLOAD_BASE="https://github.com/NCLGISA/The-ScanRay-Console/releases/latest/download"
+DOWNLOAD_BASE="https://github.com/NCLGISA/ScanRay-Pupp/releases/latest/download"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -40,19 +40,34 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 echo "Platform: ${OS}/${ARCH}"
 
 echo "Creating directories..."
-sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/data/nuclei-templates"
+# Nuclei writes its config + provider keys under $HOME/.config; we pin HOME to
+# ${INSTALL_DIR}/data so the service user (which has no /home) can write them.
+sudo mkdir -p "${INSTALL_DIR}/bin" \
+              "${INSTALL_DIR}/data/nuclei-templates" \
+              "${INSTALL_DIR}/data/.config/nuclei" \
+              "${INSTALL_DIR}/data/.config/uncover"
 
-echo "Downloading ScanRay Pupp agent..."
-sudo curl -sSL -o "${INSTALL_DIR}/bin/pupp" \
+echo "Downloading ScanRay Pupp agent from ${DOWNLOAD_BASE}/pupp-${OS}-${ARCH}..."
+sudo curl -fsSL -o "${INSTALL_DIR}/bin/pupp" \
     "${DOWNLOAD_BASE}/pupp-${OS}-${ARCH}" || {
-    echo "WARNING: Download failed. Place the pupp binary at ${INSTALL_DIR}/bin/pupp manually."
+    echo "ERROR: Download of pupp-${OS}-${ARCH} failed (HTTP error). Verify a release with that asset exists at ${DOWNLOAD_BASE%/*/*}."
+    exit 1
 }
+if ! file "${INSTALL_DIR}/bin/pupp" | grep -q 'ELF'; then
+    echo "ERROR: Downloaded pupp is not an ELF binary (got: $(file ${INSTALL_DIR}/bin/pupp)). Aborting."
+    exit 1
+fi
 
-echo "Downloading Scanray scanner..."
-sudo curl -sSL -o "${INSTALL_DIR}/bin/scanray" \
+echo "Downloading Scanray scanner from ${DOWNLOAD_BASE}/scanray-${OS}-${ARCH}..."
+sudo curl -fsSL -o "${INSTALL_DIR}/bin/scanray" \
     "${DOWNLOAD_BASE}/scanray-${OS}-${ARCH}" || {
-    echo "WARNING: Download failed. Place the scanray binary at ${INSTALL_DIR}/bin/scanray manually."
+    echo "ERROR: Download of scanray-${OS}-${ARCH} failed (HTTP error). Verify a release with that asset exists at ${DOWNLOAD_BASE%/*/*}."
+    exit 1
 }
+if ! file "${INSTALL_DIR}/bin/scanray" | grep -q 'ELF'; then
+    echo "ERROR: Downloaded scanray is not an ELF binary (got: $(file ${INSTALL_DIR}/bin/scanray)). Aborting."
+    exit 1
+fi
 
 echo "Downloading Nuclei scanner..."
 NUCLEI_VER=$(curl -sSL "https://api.github.com/repos/projectdiscovery/nuclei/releases/latest" | grep '"tag_name"' | head -1 | cut -d '"' -f 4)
@@ -85,6 +100,7 @@ SCANRAY_BINARY=${INSTALL_DIR}/bin/scanray
 NUCLEI_BINARY=${INSTALL_DIR}/bin/nuclei
 PUPP_DATA_DIR=${INSTALL_DIR}/data
 NUCLEI_TEMPLATES_DIR=${INSTALL_DIR}/data/nuclei-templates
+HOME=${INSTALL_DIR}/data
 ENVEOF
 sudo chmod 600 /etc/scanray-pupp.env
 
